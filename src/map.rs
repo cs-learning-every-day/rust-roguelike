@@ -5,18 +5,20 @@ use specs::*;
 use std::cmp::{max, min};
 
 #[derive(PartialEq, Clone, Copy)]
-pub enum TitleType {
+pub enum TileType {
     Wall,
     Floor,
 }
 
 pub struct Map {
-    pub titles: Vec<TitleType>,
+    pub tiles: Vec<TileType>,
     pub rooms: Vec<Rect>,
     pub width: i32,
     pub height: i32,
     pub revealed_titles: Vec<bool>,
     pub visible_titles: Vec<bool>,
+    pub blocked: Vec<bool>,
+    pub tile_content: Vec<Vec<Entity>>,
 }
 
 impl Map {
@@ -24,11 +26,19 @@ impl Map {
         (y as usize * self.width as usize) + x as usize
     }
 
+    fn is_exit_valid(&self, x: i32, y: i32) -> bool {
+        if x < 1 || x > self.width - 1 || y < 1 || y > self.height - 1 {
+            return false;
+        }
+        let idx = self.xy_idx(x, y);
+        !self.blocked[idx]
+    }
+
     fn apply_from_to_map(&mut self, room: &Rect) {
         for y in room.y1 + 1..=room.y2 {
             for x in room.x1 + 1..=room.x2 {
                 let idx = self.xy_idx(x, y);
-                self.titles[idx] = TitleType::Floor;
+                self.tiles[idx] = TileType::Floor;
             }
         }
     }
@@ -37,7 +47,7 @@ impl Map {
         for x in min(x1, 2)..=max(x1, x2) {
             let idx = self.xy_idx(x, y);
             if idx > 0 && idx < self.width as usize * self.height as usize {
-                self.titles[idx] = TitleType::Floor;
+                self.tiles[idx] = TileType::Floor;
             }
         }
     }
@@ -46,8 +56,20 @@ impl Map {
         for y in min(y1, y2)..=max(y1, y2) {
             let idx = self.xy_idx(x, y);
             if idx > 0 && idx < self.width as usize * self.height as usize {
-                self.titles[idx] = TitleType::Floor;
+                self.tiles[idx] = TileType::Floor;
             }
+        }
+    }
+
+    pub fn populate_blocked(&mut self) {
+        for (i, tile) in self.tiles.iter_mut().enumerate() {
+            self.blocked[i] = *tile == TileType::Wall;
+        }
+    }
+
+    pub fn clear_content_index(&mut self) {
+        for content in self.tile_content.iter_mut() {
+            content.clear();
         }
     }
 
@@ -55,26 +77,28 @@ impl Map {
     /// look awful.
     pub fn new_map_test() -> Map {
         let mut map = Map {
-            titles: vec![TitleType::Floor; 80 * 50],
+            tiles: vec![TileType::Floor; 80 * 50],
             rooms: Vec::new(),
             width: 80,
             height: 50,
             revealed_titles: vec![false; 80 * 50],
             visible_titles: vec![false; 80 * 50],
+            blocked: vec![false; 80 * 50],
+            tile_content: vec![Vec::new(); 80 * 50],
         };
 
         for x in 0..80 {
             let mut idx = map.xy_idx(x, 0);
-            map.titles[idx] = TitleType::Wall;
+            map.tiles[idx] = TileType::Wall;
             idx = map.xy_idx(x, 49);
-            map.titles[idx] = TitleType::Wall;
+            map.tiles[idx] = TileType::Wall;
         }
 
         for y in 0..50 {
             let mut idx = map.xy_idx(0, y);
-            map.titles[idx] = TitleType::Wall;
+            map.tiles[idx] = TileType::Wall;
             idx = map.xy_idx(79, y);
-            map.titles[idx] = TitleType::Wall;
+            map.tiles[idx] = TileType::Wall;
         }
 
         let mut rng = rltk::RandomNumberGenerator::new();
@@ -83,7 +107,7 @@ impl Map {
             let y = rng.roll_dice(1, 49);
             let idx = map.xy_idx(x, y);
             if idx != map.xy_idx(40, 25) {
-                map.titles[idx] = TitleType::Wall;
+                map.tiles[idx] = TileType::Wall;
             }
         }
 
@@ -93,11 +117,13 @@ impl Map {
     pub fn new_map_rooms_and_corridors() -> Map {
         let mut map = Map {
             rooms: Vec::new(),
-            titles: vec![TitleType::Wall; 80 * 50],
+            tiles: vec![TileType::Wall; 80 * 50],
             width: 80,
             height: 50,
             revealed_titles: vec![false; 80 * 50],
             visible_titles: vec![false; 80 * 50],
+            blocked: vec![false; 80 * 50],
+            tile_content: vec![Vec::new(); 80 * 50],
         };
 
         const MAX_ROOMS: i32 = 30;
@@ -147,7 +173,53 @@ impl Algorithm2D for Map {
 
 impl BaseMap for Map {
     fn is_opaque(&self, idx: usize) -> bool {
-        self.titles[idx] == TitleType::Wall
+        self.tiles[idx] == TileType::Wall
+    }
+
+    fn get_pathing_distance(&self, idx1: usize, idx2: usize) -> f32 {
+        let w = self.width as usize;
+        let p1 = Point::new(idx1 % w, idx1 / w);
+        let p2 = Point::new(idx2 % w, idx2 / w);
+
+        rltk::DistanceAlg::Pythagoras.distance2d(p1, p2)
+    }
+
+    fn get_available_exits(&self, idx: usize) -> SmallVec<[(usize, f32); 10]> {
+        let mut exits = rltk::SmallVec::new();
+
+        let x = idx as i32 % self.width;
+        let y = idx as i32 / self.width;
+        let w = self.width as usize;
+
+        // Cardinal directions
+        if self.is_exit_valid(x - 1, y) {
+            exits.push((idx - 1, 1.0));
+        }
+        if self.is_exit_valid(x + 1, y) {
+            exits.push((idx + 1, 1.0))
+        }
+        if self.is_exit_valid(x, y - 1) {
+            exits.push((idx - w, 1.0))
+        }
+        if self.is_exit_valid(x, y + 1) {
+            exits.push((idx + w, 1.0))
+        }
+
+        // Diagonals
+        if self.is_exit_valid(x - 1, y - 1) {
+            exits.push((idx - 1 - w, 1.45));
+        }
+        if self.is_exit_valid(x + 1, y - 1) {
+            exits.push((idx + 1 - w, 1.45));
+        }
+        if self.is_exit_valid(x - 1, y + 1) {
+            exits.push((idx - 1 + w, 1.45));
+        }
+        if self.is_exit_valid(x + 1, y + 1) {
+            exits.push((idx + 1 + w, 1.45));
+        }
+
+        exits
     }
 }
 
@@ -156,16 +228,16 @@ pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
 
     let mut y = 0;
     let mut x = 0;
-    for (idx, title) in map.titles.iter().enumerate() {
+    for (idx, title) in map.tiles.iter().enumerate() {
         if map.revealed_titles[idx] {
             let glyph;
             let mut fg;
             match title {
-                TitleType::Wall => {
+                TileType::Wall => {
                     glyph = rltk::to_cp437('#');
                     fg = RGB::from_f32(0.0, 1.0, 0.0);
                 }
-                TitleType::Floor => {
+                TileType::Floor => {
                     glyph = rltk::to_cp437('.');
                     fg = RGB::from_f32(0.5, 0.5, 0.5);
                 }
