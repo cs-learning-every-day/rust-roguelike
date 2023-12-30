@@ -33,3 +33,10 @@ impl<'a> System<'a> for LeftMover {
 
 #[derive(Component)]
 pub struct Player {}
+
+#[derive(Component)]
+pub struct Viewshed {
+    pub visible_titles: Vec<rltk::Point>,
+    pub range: i32,
+    pub dirty: bool,
+}

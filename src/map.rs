@@ -1,8 +1,8 @@
-use std::cmp::{max, min};
-
-use rltk::{RandomNumberGenerator, Rltk, RGB};
-
 use super::Rect;
+use rltk::prelude::*;
+use rltk::{Algorithm2D, RandomNumberGenerator, Rltk, RGB};
+use specs::*;
+use std::cmp::{max, min};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum TitleType {
@@ -15,6 +15,8 @@ pub struct Map {
     pub rooms: Vec<Rect>,
     pub width: i32,
     pub height: i32,
+    pub revealed_titles: Vec<bool>,
+    pub visible_titles: Vec<bool>,
 }
 
 impl Map {
@@ -57,6 +59,8 @@ impl Map {
             rooms: Vec::new(),
             width: 80,
             height: 50,
+            revealed_titles: vec![false; 80 * 50],
+            visible_titles: vec![false; 80 * 50],
         };
 
         for x in 0..80 {
@@ -92,6 +96,8 @@ impl Map {
             titles: vec![TitleType::Wall; 80 * 50],
             width: 80,
             height: 50,
+            revealed_titles: vec![false; 80 * 50],
+            visible_titles: vec![false; 80 * 50],
         };
 
         const MAX_ROOMS: i32 = 30;
@@ -133,29 +139,41 @@ impl Map {
     }
 }
 
-pub fn draw_map(map: &Map, ctx: &mut Rltk) {
+impl Algorithm2D for Map {
+    fn dimensions(&self) -> Point {
+        Point::new(self.width, self.height)
+    }
+}
+
+impl BaseMap for Map {
+    fn is_opaque(&self, idx: usize) -> bool {
+        self.titles[idx] == TitleType::Wall
+    }
+}
+
+pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
+    let map = ecs.fetch::<Map>();
+
     let mut y = 0;
     let mut x = 0;
-    for title in map.titles.iter() {
-        match title {
-            TitleType::Wall => {
-                ctx.set(
-                    x,
-                    y,
-                    RGB::from_f32(0.0, 1.0, 0.0),
-                    RGB::from_f32(0., 0., 0.),
-                    rltk::to_cp437('#'),
-                );
+    for (idx, title) in map.titles.iter().enumerate() {
+        if map.revealed_titles[idx] {
+            let glyph;
+            let mut fg;
+            match title {
+                TitleType::Wall => {
+                    glyph = rltk::to_cp437('#');
+                    fg = RGB::from_f32(0.0, 1.0, 0.0);
+                }
+                TitleType::Floor => {
+                    glyph = rltk::to_cp437('.');
+                    fg = RGB::from_f32(0.5, 0.5, 0.5);
+                }
             }
-            TitleType::Floor => {
-                ctx.set(
-                    x,
-                    y,
-                    RGB::from_f32(0.5, 0.5, 0.5),
-                    RGB::from_f32(0., 0., 0.),
-                    rltk::to_cp437('.'),
-                );
+            if !map.visible_titles[idx] {
+                fg = fg.to_greyscale();
             }
+            ctx.set(x, y, fg, RGB::from_f32(0., 0., 0.), glyph);
         }
         x += 1;
         if x > 79 {
