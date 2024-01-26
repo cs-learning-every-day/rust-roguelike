@@ -5,7 +5,7 @@ use specs::*;
 use std::cmp::{max, min};
 
 const MAPWIDTH: usize = 80;
-const MAPHEIGHT: usize = 50;
+const MAPHEIGHT: usize = 43;
 const MAPCOUNT: usize = MAPHEIGHT * MAPWIDTH;
 
 #[derive(PartialEq, Clone, Copy)]
@@ -19,8 +19,8 @@ pub struct Map {
     pub rooms: Vec<Rect>,
     pub width: i32,
     pub height: i32,
-    pub revealed_titles: Vec<bool>,
-    pub visible_titles: Vec<bool>,
+    pub revealed_tiles: Vec<bool>,
+    pub visible_tiles: Vec<bool>,
     pub blocked: Vec<bool>,
     pub tile_content: Vec<Vec<Entity>>,
 }
@@ -83,8 +83,8 @@ impl Map {
             tiles: vec![TileType::Wall; MAPCOUNT],
             width: MAPWIDTH as i32,
             height: MAPHEIGHT as i32,
-            revealed_titles: vec![false; MAPCOUNT],
-            visible_titles: vec![false; MAPCOUNT],
+            revealed_tiles: vec![false; MAPCOUNT],
+            visible_tiles: vec![false; MAPCOUNT],
             blocked: vec![false; MAPCOUNT],
             tile_content: vec![Vec::new(); MAPCOUNT],
         };
@@ -192,7 +192,7 @@ pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
     let mut y = 0;
     let mut x = 0;
     for (idx, title) in map.tiles.iter().enumerate() {
-        if map.revealed_titles[idx] {
+        if map.revealed_tiles[idx] {
             let glyph;
             let mut fg;
             match title {
@@ -205,7 +205,7 @@ pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
                     fg = RGB::from_f32(0.5, 0.5, 0.5);
                 }
             }
-            if !map.visible_titles[idx] {
+            if !map.visible_tiles[idx] {
                 fg = fg.to_greyscale();
             }
             ctx.set(x, y, fg, RGB::from_f32(0., 0., 0.), glyph);

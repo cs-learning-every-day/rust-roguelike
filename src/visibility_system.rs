@@ -31,13 +31,13 @@ impl<'a> System<'a> for VisibilitySystem {
 
                 let _p = player.get(ent);
                 if let Some(_p) = _p {
-                    for t in map.visible_titles.iter_mut() {
+                    for t in map.visible_tiles.iter_mut() {
                         *t = false;
                     }
                     for vis in viewshed.visible_tiles.iter() {
                         let idx = map.xy_idx(vis.x, vis.y);
-                        map.revealed_titles[idx] = true;
-                        map.visible_titles[idx] = true;
+                        map.revealed_tiles[idx] = true;
+                        map.visible_tiles[idx] = true;
                     }
                 }
             }

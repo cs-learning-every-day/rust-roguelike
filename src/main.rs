@@ -18,6 +18,8 @@ mod melee_combat_system;
 use melee_combat_system::MeleeCombatSystem;
 mod damage_system;
 use damage_system::DamageSystem;
+mod gamelog;
+mod gui;
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RunState {
@@ -88,20 +90,21 @@ impl GameState for State {
 
         for (pos, render) in (&positions, &renderables).join() {
             let idx = map.xy_idx(pos.x, pos.y);
-            if map.visible_titles[idx] {
+            if map.visible_tiles[idx] {
                 ctx.set(pos.x, pos.y, render.fg, render.bg, render.glyph);
             }
         }
+
+        gui::draw_ui(&self.ecs, ctx);
     }
 }
 
 fn main() -> rltk::BError {
     use rltk::RltkBuilder;
-    let context = RltkBuilder::simple80x50()
+    let mut context = RltkBuilder::simple80x50()
         .with_title("Rougelike Tutorial")
-        .build()
-        .ok()
-        .unwrap();
+        .build()?;
+    context.with_post_scanlines(true);
     let mut gs = State { ecs: World::new() };
     gs.ecs.register::<Position>();
     gs.ecs.register::<Renderable>();
@@ -194,6 +197,10 @@ fn main() -> rltk::BError {
         .build();
     gs.ecs.insert(player_entity);
     gs.ecs.insert(RunState::PreRun);
+
+    gs.ecs.insert(gamelog::GameLog {
+        entries: vec!["Welcome to Rusty Rougelike".to_string()],
+    });
 
     rltk::main_loop(context, gs)
 }
