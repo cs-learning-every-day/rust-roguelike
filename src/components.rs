@@ -2,6 +2,11 @@ use rltk::RGB;
 use specs::prelude::*;
 use specs_derive::*;
 
+#[derive(Component, Debug)]
+pub struct WantsToDrinkPotion {
+    pub potion: Entity,
+}
+
 #[derive(Component, Debug, Clone)]
 pub struct InBackpack {
     pub owner: Entity,
