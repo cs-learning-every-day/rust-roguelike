@@ -1,4 +1,4 @@
-use inventory_system::{ItemCollectionSystem, PotionUseSystem};
+use inventory_system::{ItemCollectionSystem, ItemDropSystem, PotionUseSystem};
 use rltk::{GameState, Point, Rltk};
 use specs::prelude::*;
 mod components;
@@ -31,6 +31,7 @@ pub enum RunState {
     PlayerTurn,
     MonsterTurn,
     ShowInventory,
+    ShowDropItem,
 }
 
 pub struct State {
@@ -39,12 +40,6 @@ pub struct State {
 
 impl State {
     fn run_systems(&mut self) {
-        let mut potions = PotionUseSystem {};
-        potions.run_now(&self.ecs);
-
-        let mut pickup = ItemCollectionSystem {};
-        pickup.run_now(&self.ecs);
-
         let mut vis = VisibilitySystem {};
         vis.run_now(&self.ecs);
 
@@ -60,6 +55,15 @@ impl State {
         let mut damage = DamageSystem {};
         damage.run_now(&self.ecs);
 
+        let mut pickup = ItemCollectionSystem {};
+        pickup.run_now(&self.ecs);
+
+        let mut potions = PotionUseSystem {};
+        potions.run_now(&self.ecs);
+
+        let mut drop_items = ItemDropSystem {};
+        drop_items.run_now(&self.ecs);
+
         self.ecs.maintain();
     }
 }
@@ -67,6 +71,25 @@ impl State {
 impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
         ctx.cls();
+
+        draw_map(&self.ecs, ctx);
+
+        {
+            let positions = self.ecs.read_storage::<Position>();
+            let renderables = self.ecs.read_storage::<Renderable>();
+            let map = self.ecs.fetch::<Map>();
+
+            let mut data = (&positions, &renderables).join().collect::<Vec<_>>();
+            data.sort_by(|&a, &b| b.1.render_order.cmp(&a.1.render_order));
+
+            for (pos, render) in data.iter() {
+                let idx = map.xy_idx(pos.x, pos.y);
+                if map.visible_tiles[idx] {
+                    ctx.set(pos.x, pos.y, render.fg, render.bg, render.glyph)
+                }
+            }
+            gui::draw_ui(&self.ecs, ctx);
+        }
 
         let mut newrunstate;
         {
@@ -118,6 +141,25 @@ impl GameState for State {
                     }
                 }
             }
+
+            RunState::ShowDropItem => {
+                let result = gui::drop_item_menu(self, ctx);
+                match result.0 {
+                    gui::ItemMenuResult::Cancel => newrunstate = RunState::AwaitingInput,
+                    gui::ItemMenuResult::NoResponse => {}
+                    gui::ItemMenuResult::Selected => {
+                        let item_entity = result.1.unwrap();
+                        let mut intent = self.ecs.write_storage::<WantsToDropItem>();
+                        intent
+                            .insert(
+                                *self.ecs.fetch::<Entity>(),
+                                WantsToDropItem { item: item_entity },
+                            )
+                            .expect("Unable to insert intent");
+                        newrunstate = RunState::PlayerTurn;
+                    }
+                }
+            }
         }
 
         {
@@ -125,21 +167,6 @@ impl GameState for State {
             *runwriter = newrunstate;
         }
         damage_system::delete_the_dead(&mut self.ecs);
-
-        draw_map(&self.ecs, ctx);
-
-        let positions = self.ecs.read_storage::<Position>();
-        let renderables = self.ecs.read_storage::<Renderable>();
-        let map = self.ecs.fetch::<Map>();
-
-        for (pos, render) in (&positions, &renderables).join() {
-            let idx = map.xy_idx(pos.x, pos.y);
-            if map.visible_tiles[idx] {
-                ctx.set(pos.x, pos.y, render.fg, render.bg, render.glyph);
-            }
-        }
-
-        gui::draw_ui(&self.ecs, ctx);
     }
 }
 
@@ -166,6 +193,7 @@ fn main() -> rltk::BError {
     gs.ecs.register::<InBackpack>();
     gs.ecs.register::<WantsToPickupItem>();
     gs.ecs.register::<WantsToDrinkPotion>();
+    gs.ecs.register::<WantsToDropItem>();
 
     gs.ecs.insert(rltk::RandomNumberGenerator::new());
 

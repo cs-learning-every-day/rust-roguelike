@@ -62,6 +62,7 @@ pub fn player_input(gs: &mut State, ctx: &Rltk) -> RunState {
     // Player movement
     match ctx.key {
         Some(key) => match key {
+            VirtualKeyCode::D => return RunState::ShowDropItem,
             VirtualKeyCode::I => return RunState::ShowInventory,
             VirtualKeyCode::G => get_item(&mut gs.ecs),
 
