@@ -2,6 +2,14 @@ use rltk::RGB;
 use specs::prelude::*;
 use specs_derive::*;
 
+#[derive(Component, Debug)]
+pub struct Item {}
+
+#[derive(Component, Debug)]
+pub struct Potion {
+    pub heal_amount: i32,
+}
+
 #[derive(Component)]
 pub struct Position {
     pub x: i32,

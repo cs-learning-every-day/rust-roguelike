@@ -1,5 +1,4 @@
 use super::{gamelog::GameLog, CombatStats, Name, Player, SufferDamage};
-use rltk::console;
 use specs::prelude::*;
 
 pub struct DamageSystem {}
@@ -35,7 +34,7 @@ pub fn delete_the_dead(ecs: &mut World) {
             if stats.hp < 1 {
                 let player = players.get(entity);
                 match player {
-                    Some(_) => console::log("You are dead"),
+                    Some(_) => log.entries.push("You are dead".to_string()),
                     None => {
                         let victim_name = names.get(entity);
                         if let Some(victim_name) = victim_name {
