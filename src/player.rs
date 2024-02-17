@@ -62,6 +62,7 @@ pub fn player_input(gs: &mut State, ctx: &Rltk) -> RunState {
     // Player movement
     match ctx.key {
         Some(key) => match key {
+            VirtualKeyCode::I => return RunState::ShowInventory,
             VirtualKeyCode::G => get_item(&mut gs.ecs),
 
             VirtualKeyCode::Left | VirtualKeyCode::Numpad4 | VirtualKeyCode::H => {
@@ -85,6 +86,7 @@ pub fn player_input(gs: &mut State, ctx: &Rltk) -> RunState {
             VirtualKeyCode::Numpad3 | VirtualKeyCode::N => try_move_player(1, 1, &mut gs.ecs),
 
             VirtualKeyCode::Numpad1 | VirtualKeyCode::B => try_move_player(-1, 1, &mut gs.ecs),
+
             _ => {
                 return RunState::AwaitingInput;
             }
