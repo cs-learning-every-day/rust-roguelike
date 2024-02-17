@@ -1,3 +1,4 @@
+use inventory_system::ItemCollectionSystem;
 use rltk::{GameState, Point, Rltk};
 use specs::prelude::*;
 mod components;
@@ -20,6 +21,7 @@ mod damage_system;
 use damage_system::DamageSystem;
 mod gamelog;
 mod gui;
+mod inventory_system;
 mod spawner;
 
 #[derive(PartialEq, Copy, Clone)]
@@ -36,16 +38,24 @@ pub struct State {
 
 impl State {
     fn run_systems(&mut self) {
+        let mut pickup = ItemCollectionSystem {};
+        pickup.run_now(&self.ecs);
+
         let mut vis = VisibilitySystem {};
         vis.run_now(&self.ecs);
+
         let mut mob = MonsterAI {};
         mob.run_now(&self.ecs);
+
         let mut mapindex = MapIndexingSystem {};
         mapindex.run_now(&self.ecs);
+
         let mut melee = MeleeCombatSystem {};
         melee.run_now(&self.ecs);
+
         let mut damage = DamageSystem {};
         damage.run_now(&self.ecs);
+
         self.ecs.maintain();
     }
 }
@@ -120,6 +130,8 @@ fn main() -> rltk::BError {
     gs.ecs.register::<SufferDamage>();
     gs.ecs.register::<Item>();
     gs.ecs.register::<Potion>();
+    gs.ecs.register::<InBackpack>();
+    gs.ecs.register::<WantsToPickupItem>();
 
     gs.ecs.insert(rltk::RandomNumberGenerator::new());
 
